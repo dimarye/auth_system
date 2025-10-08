@@ -3,17 +3,22 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from drf_yasg.utils import swagger_auto_schema
+from django.contrib.auth import authenticate
+
 from drf_yasg import openapi
 from .utils import (
-    User,
-    USERS as _USERS,
-    hash_password, 
-    check_password,
-    create_jwt, 
-    decode_jwt, 
-    get_user_by_email, 
+    create_user_jwt, 
     get_authenticated_user,
     get_token_of_request,
+)
+from .serializers import (
+    UserSerializer,
+    RegisterSerializer,
+    LoginSerializer,
+)
+from users.models import (
+    User,
+    UserToken,
 )
 
 # Response schemas
@@ -49,63 +54,42 @@ token_response = openapi.Response(
 
 class RegisterView(APIView):
     permission_classes = [AllowAny]
+    serializer_class = RegisterSerializer
 
     @swagger_auto_schema(
         operation_description="Register a new user account",
-        request_body=openapi.Schema(
-            type=openapi.TYPE_OBJECT,
-            required=['email', 'password'],
-            properties={
-                'email': openapi.Schema(type=openapi.TYPE_STRING, format='email'),
-                'password': openapi.Schema(type=openapi.TYPE_STRING, format='password')
-            },
-        ),
+        request_body=RegisterSerializer,
         responses={
             201: success_response,
             400: error_response
         }
     )
     def post(self, request, *args, **kwargs):
-        data = request.data
-        email = data.get("email")
-        password = data.get("password")
-
-        if not email or not password:
-            return Response(
-                {"error": "Email and password are required"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        if get_user_by_email(email):
-            return Response(
-                {"error": "Email already exists"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        _USERS.append(User.from_dict({
-            "email": email,
-            "password": hash_password(password),
-            "is_active": True,
-        }))
+        serializer = self.serializer_class(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-        return Response(
-            {"message": "User created successfully"},
-            status=status.HTTP_201_CREATED
-        )
+        try:
+            user = serializer.save()
+            
+            return Response({
+                'message': 'User registered successfully',
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            return Response(
+                {'error': str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
+    serializer_class = LoginSerializer
+
 
     @swagger_auto_schema(
         operation_description="Authenticate user and get JWT token",
-        request_body=openapi.Schema(
-            type=openapi.TYPE_OBJECT,
-            required=['email', 'password'],
-            properties={
-                'email': openapi.Schema(type=openapi.TYPE_STRING, format='email'),
-                'password': openapi.Schema(type=openapi.TYPE_STRING, format='password')
-            },
-        ),
+        request_body=LoginSerializer,
         responses={
             200: token_response,
             400: error_response,
@@ -114,70 +98,73 @@ class LoginView(APIView):
         }
     )
     def post(self, request):
-        data = request.data
-        email = data.get("email")
-        password = data.get("password")
-
-        if not email or not password:
+        serializer = self.serializer_class(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        username = serializer.validated_data['username']
+        password = serializer.validated_data['password']
+        
+        user = authenticate(username=username, password=password)
+        if not user:
             return Response(
-                {"error": "Email and password are required"},
-                status=status.HTTP_400_BAD_REQUEST
+                {'detail': 'Invalid credentials'}, 
+                status=status.HTTP_401_UNAUTHORIZED
             )
-
-        user = get_user_by_email(email)
-        if not user or not check_password(user.password, password):
+        
+        if not user.is_active:
             return Response(
-                {"error": "Invalid credentials"},
+                {'detail': 'User account is disabled'}, 
                 status=status.HTTP_401_UNAUTHORIZED
             )
 
-        if not user.is_active:
-            return Response(
-                {"error": "Account is deactivated"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        token = create_jwt(email)
+        token, expires_at = create_user_jwt(user)
         
-        user.add_token(token)
-            
-        return Response({"token": token})
+        # Store token in UserToken model
+        UserToken.objects.create(
+            user=user,
+            token=token,
+            expires_at=expires_at
+        )
+
+        return Response({
+            'token': token,
+            'expires_at': expires_at,
+            'user': UserSerializer(user).data
+        })
 
 class LogoutView(APIView):
     def post(self, request):
-        auth_header = request.headers.get('Authorization', '')
-        
-        if not auth_header.startswith(('Bearer ', 'Token ')):
-            return Response(
-                {"error": "No token provided"},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
-            
         token = get_token_of_request(request)
-        payload = decode_jwt(token)
-        
-        if not payload:
+
+        if not token:
             return Response(
-                {"error": "Invalid or expired token"},
+                {'detail': 'Invalid token'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            UserToken.objects.filter(token=token).delete()
+
+            return Response({'detail': 'Successfully logged out'})
+        except Exception as e:
+            return Response(
+                {'detail': str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+class ProfileView(APIView):
+    def get(self, request):
+        if not request.user or request.user.is_anonymous:
+            return Response(
+                {'detail': 'Authentication credentials were not provided.'}, 
                 status=status.HTTP_401_UNAUTHORIZED
             )
-            
-        user = get_user_by_email(payload.get('email'))
-        if not user:
-            return Response(
-                {"error": "User not found"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+        
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data)
 
-        user.revoke_token(token)
-
-        return Response(
-            {"message": "Successfully logged out"},
-            status=status.HTTP_200_OK
-        )
-
-
-class DeleteAccountView(APIView):
     @swagger_auto_schema(
         operation_description="Delete the authenticated user's account",
         responses={
@@ -207,7 +194,7 @@ class DeleteAccountView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED
             )
         
-        _USERS[:] = [u for u in _USERS if u.email != user.email]
+        user.deactivate()
         
         return Response(
             {"message": "Account deleted successfully"},
