@@ -155,6 +155,9 @@ class LogoutView(APIView):
 
 
 class ProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserSerializer
+
     def get(self, request):
         if not request.user or request.user.is_anonymous:
             return Response(
@@ -162,7 +165,7 @@ class ProfileView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED
             )
         
-        serializer = UserSerializer(request.user)
+        serializer = self.serializer_class(request.user)
         return Response(serializer.data)
 
     @swagger_auto_schema(

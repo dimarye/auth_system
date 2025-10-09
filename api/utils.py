@@ -6,15 +6,21 @@ from users.helpers import get_user_by_token
 
 def create_user_jwt(user):
     """Create a JWT token for the given email."""
-    expires_at = datetime.datetime.now() + datetime.timedelta(days=7)
+    expires_at = datetime.datetime.now(tz=datetime.timezone.utc) + datetime.timedelta(seconds=settings.JWT_ACCESS_TOKEN_LIFETIME)
     payload = {
         'user_id': user.id,
         'username': user.username,
         'exp': expires_at,
-        'iat': datetime.datetime.now(),
+        'iat': datetime.datetime.now(tz=datetime.timezone.utc),
     }
 
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM), expires_at
+
+
+def decode_jwt(token):
+    """Decode and verify a JWT token."""
+
+    return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
 
 
 def get_token_of_request(request):
