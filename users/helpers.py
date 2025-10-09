@@ -12,4 +12,4 @@ def get_user_by_token(token: str):
     return user_token.user 
 
 def get_user_by_id(user_id: int):
-    return User.objects.first(id=user_id)
+    return User.objects.get(id=user_id)

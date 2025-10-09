@@ -56,6 +56,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'api.middleware.JWTAuthMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -142,5 +143,6 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # Authentication Settings
 SALT = os.getenv('SALT')
 JWT_ALGORITHM = 'HS256'
-JWT_ACCESS_TOKEN_LIFETIME = 1800  # 30 minutes in seconds
+# JWT_ACCESS_TOKEN_LIFETIME = 1800  # 30 minutes in seconds
+JWT_ACCESS_TOKEN_LIFETIME = 20
 JWT_REFRESH_TOKEN_LIFETIME = 86400  # 24 hours in seconds
