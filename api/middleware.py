@@ -1,13 +1,15 @@
 import jwt
 from datetime import datetime, timezone
 from django.utils.deprecation import MiddlewareMixin
-from django.contrib.auth.models import AnonymousUser, User
+from django.contrib.auth.models import AnonymousUser
+from django.contrib.auth import get_user_model
 from django.http import JsonResponse
 from .utils import (
     get_token_of_request,
     decode_jwt,
 )
 from users.helpers import get_user_by_id
+UserModel = get_user_model()
 
 
 class JWTAuthMiddleware(MiddlewareMixin):
@@ -22,7 +24,7 @@ class JWTAuthMiddleware(MiddlewareMixin):
             payload = decode_jwt(token)
         except jwt.ExpiredSignatureError:
             return JsonResponse({'detail': 'Token expired'}, status=401)
-        except jwt.InvalifdTokenError:
+        except jwt.InvalidTokenError:
             return JsonResponse({'detail': 'Invalid token'}, status=401)
 
         user_id = payload.get('user_id')
@@ -31,7 +33,7 @@ class JWTAuthMiddleware(MiddlewareMixin):
 
         try:
             user = get_user_by_id(user_id)
-        except User.DoesNotExist:
+        except UserModel.DoesNotExist:
             return JsonResponse({'detail': 'User not found'}, status=401)
 
         if not user.is_active:

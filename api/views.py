@@ -1,25 +1,26 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from drf_yasg.utils import swagger_auto_schema
 from django.contrib.auth import authenticate
+from config.roles import BusinessElement
 
 from drf_yasg import openapi
 from .utils import (
     create_user_jwt, 
     get_authenticated_user,
     get_token_of_request,
+    has_permission,
 )
 from .serializers import (
     UserSerializer,
     RegisterSerializer,
     LoginSerializer,
 )
-from users.models import (
-    User,
-    UserToken,
-)
+
+# Import models needed in views
+from users.models import UserToken
 
 # Response schemas
 error_response = openapi.Response(
@@ -157,7 +158,7 @@ class LogoutView(APIView):
 class ProfileView(APIView):
     permission_classes = [IsAuthenticated]
     serializer_class = UserSerializer
-
+    @has_permission(BusinessElement.USERS.value, 'read')
     def get(self, request):
         if not request.user or request.user.is_anonymous:
             return Response(
@@ -185,6 +186,7 @@ class ProfileView(APIView):
         },
         security=[{"Bearer": []}]
     )
+    @has_permission(BusinessElement.USERS.value, 'delete')
     def delete(self, request):
         """
         Delete the authenticated user's account.
