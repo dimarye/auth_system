@@ -9,3 +9,5 @@ class BusinessElement(str, Enum):
     USERS = 'users'
     ORDERS = 'orders'
     PRODUCTS = 'products'
+    ROLES = 'roles'
+    RULES = 'rules'

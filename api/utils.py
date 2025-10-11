@@ -64,17 +64,14 @@ def has_permission(element_name, action):
                     request = args[0]
                 elif len(args) >= 2 and hasattr(args[1], 'META'):
                     request = args[1]
-
+            
             if request is None:
                 return JsonResponse({'detail': 'Unauthorized'}, status=401)
-
             user = request.user
             if not user or not getattr(user, 'is_authenticated', False):
                 return JsonResponse({'detail': 'Unauthorized'}, status=401)
-
             if not getattr(user, 'role_id', None):
                 return JsonResponse({'detail': 'Forbidden'}, status=403)
-
             try:
                 element = BusinessElement.objects.get(name=element_name)
                 rule = AccessRoleRule.objects.get(role=user.role, element=element)
