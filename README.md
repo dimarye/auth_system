@@ -264,7 +264,7 @@ python manage.py runserver 0.0.0.0:8000
 ---
 
 ## 🧪 Коллекция запросов (BRUNO)
-В репозитории `BRUNO/` находится предварительно настроенная коллекция запросов для Bruno. 
+В репозитории `[BRUNO/](https://github.com/dimarye/auth-api-bruno-collection.git)` находится предварительно настроенная коллекция запросов для Bruno. 
 
 ### Как использовать:
 1. Установите [Bruno](https://www.usebruno.com/) (если ещё не установлен)
